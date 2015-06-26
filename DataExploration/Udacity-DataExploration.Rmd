@@ -1,0 +1,214 @@
+Exploatory Analysis of Loan Data from Prosper by Brian
+========================================================
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that you end up using
+# in your analysis in this code chunk.
+
+# Notice that the parameter "echo" was set to FALSE for this code chunk.
+# This prevents the code from displaying in the knitted HTML output.
+# You should set echo=FALSE for all code chunks in your file.
+
+library(ggplot2)
+library(knitr)
+library(dplyr)
+
+#File URL = 'https://www.google.com/url?q=https%3A%2F%2Fs3.amazonaws.com%2Fudacity-hosted-downloads%2Fud651%2FprosperLoanData.csv&sa=D&sntz=1&usg=AFQjCNE1BPfVPGV0q0A3xkZxq8VBcfYuoA'
+
+```
+
+In this exploratory data analysis, we will look at the data provided from Prosper, a peer-to-peer lending marketplace. According to their website, the company has 2 million members that have provided a over 2 Billion Dollars in funded loans. Prosper in essence allows people to invest in other members for loan amounts ranging from 2000 to 35000. To better understand their bussiness model, we perform a simple exploratory data analysis with two key objectives. Our first objective is to better understand the individuals that use these types of services. This data set provides a wealth of information regarding the borrowers that are commonly used to assess risk and determine credit worthiness. To better understand the risk associated with lending, we would like to understand the factors that may ultimately lead to a default on loans, to prevent future occurences.
+
+
+```{r echo=FALSE, Load_the_Data}
+
+loans <- read.csv("./prosperLoanData.csv")
+dim(loans)
+
+#str(loans)
+#summary(loans)
+
+# loans_subset <- loans %>% select(ListingCreationDate:BorrowerRate, EstimatedLoss:EstimatedReturn, 
+#                                  ListingCategory..numeric., Occupation:EmploymentStatusDuration,
+#                                  CreditScoreRangeLower:DelinquenciesLast7Years,
+#                                  DebtToIncomeRatio, IncomeRange, 
+#                                  StatedMonthlyIncome, LoanOriginalAmount, LoanOriginationDate)
+
+#Convert Dates to appropriate format
+
+loans$ListingCreationDate <- as.Date(loans$ListingCreationDate, format = '%Y-%m-%d')
+loans$DateCreditPulled <- as.Date(loans$DateCreditPulled, format = '%Y-%m-%d')
+loans$FirstRecordedCreditLine <- as.Date(loans$FirstRecordedCreditLine, format = '%Y-%m-%d')
+
+
+loans$ListingCategory <- as.factor(loans$ListingCategory..numeric.)
+levels(loans$ListingCategory) <- c("NA", "Debt Consolidation", "Home Improvement", "Business", "Personal Loan", "Student Use", "Auto", "Other", 
+                                   "Baby/Adoption", "Boat", "Cosmetic", "Engagement Ring", "Green Loans", "Household Expenses", "Large Purchases", 
+                                   "Medical/Dental", "Motorcycle","RV", "Taxes", "Vacation", "Wedding Loans")
+
+table(loans$LoanStatus)
+
+levels(loans$LoanStatus)[7:12] <- 'Past Due'
+levels(loans$LoanStatus)[6] <- 'Current'
+
+table(loans$LoanStatus) #Check to see factors are converted correctly
+
+table(loans$ListingCategory)
+
+levels(loans$ListingCategory)[c(10,18,20)] <- 'Recreation' #Vacation, RV, Boat to Recration
+levels(loans$ListingCategory)[12] <- 'Wedding Loans' #Engagement Ring to Wedding Loans
+
+
+table(loans$ListingCategory) #Check to see factors are converted correctly
+
+```
+
+The original size of the data sets includes 113937 observations of 81 factors. Based on the ListingCreationDate, the first listings were initiated at the beginning of 2006 and the data for this set ends at the beginning of 2014.
+
+A quick look at the data and variable definitions shows prosper had changed its evaluation metric during 2009, and therefore entries pre-2009 have a CreditGrade variable, and those after have a ProperRating and Proper Score. Despite the absence of listings created at the beginning of 2009, there appears to be an increase in the number of listing created on prosper. According to Wikipedia, in 2009, Prosper had changed its business model to use pre-set rates based on a formula which evaluated each prospective borrowers credit risk. 
+
+# Univariate Plots Section
+```{r echo=FALSE, Univariate_Plots}
+
+ggplot(loans, aes(ListingCreationDate)) + geom_histogram()
+
+ggplot(loans, aes(ListingCategory)) + geom_bar()
+table(loans$ListingCategory)/length(loans$ListingCategory)
+
+ggplot(loans, aes(LoanOriginalAmount)) + geom_histogram(binwidth = 1000) + geom_vline(xintercept = median(loans$LoanOriginalAmount), col = 'red', size = 1)
+summary(loans$LoanOriginalAmount)
+
+ggplot(loans, aes(CreditScoreRangeLower)) + geom_histogram()
+
+ggplot(loans, aes(CreditGrade)) + geom_histogram() ##Not useful too many missing values
+#table(loans_subset$CreditGrade)
+
+ggplot(loans, aes(LoanStatus)) + geom_histogram()
+table(loans$LoanStatus)/length(loans$LoanStatus)
+
+#ggplot(loans, aes(CreditGrade, fill = LoanStatus)) + geom_histogram()
+
+ggplot(loans, aes(ListingCategory, LoanOriginalAmount)) + geom_boxplot()
+ggplot(loans, aes(LoanStatus, CreditScoreRangeLower)) + geom_boxplot()
+summary(loans$CreditScoreRangeLower)
+
+#ggplot(loans_subset, aes(ListingCategory)) + geom_histogram()
+
+
+ggplot(loans, aes(ListingCreationDate, fill = LoanStatus)) + geom_histogram()
+ggplot(loans, aes(LoanOriginalAmount, fill = ListingCategory)) + geom_histogram(binwidth = 1000)
+
+table(LoanStatus = loans$LoanStatus, LoanCreationDate = format(loans$ListingCreationDate, '%Y'))
+
+table(loans$IncomeRange, loans$IncomeVerifiable)
+
+table(loans$IncomeRange, loans$LoanStatus)
+
+ggplot(loans, aes(LoanOriginalAmount, fill = LoanStatus)) + geom_histogram() + facet_wrap(~IncomeRange)
+
+```
+
+
+# Univariate Analysis
+
+### What is the structure of your dataset?
+
+Each row in this particular dataset pertains to a particular listing for a loan on Propser. The columns pertain to information about the individual loans, including the purpose and amount of the loan, the borrower's income and credit information, and the terms and status of the loan.
+
+### What is/are the main feature(s) of interest in your dataset?
+
+In our first plot, we are interested in the size of the loans and their purpose. The histogram of this plot shows that the loan amounts are right skewed. The majority of the loans are for amounts between 1000 and 5000 dollars, with a median of 6500 and a mean of 8337. The ListingCategory shows us that the majority of loans are used for debt consolidation purposes (50%), home improvements (6.5%), or businesses (6.3%) and about 25 percent is classified as Other or NA. Looking at the histogram, the majority of loans initiated prior to 2011 have finished in the sense that they are classified as completed, charged off, or defaulted. We can also observe a few cancelled loans, 4 in 2006 and 1 in 2008, but in the context of our data will provide us very little information. Within the entire data set, we can see that the number of current loans is approxiately 50% with 33% completed with 4.4% defaulted and 10% charged off. Defaults area failure to meet the legal obligations/conditions of a loan, and ultimately leads to a charge-off, meaning the debt is unlikely to be collected. Therefore, for our data, we will ultimately assume that some of the loans that are past due will eventually default, and that the majority of them that have defaulted will ultimately be charged off.
+
+In the first part of our analysis, we look at the loans themselves and how they are structured. Next, we look at some of the factors that may contribute to the ultimate status of the loan, such as information on the borrowers. In particular, one main indicator of credit worthiness would be credit scores and income.
+
+The credit scores are relatively normally distributed, with a mean of 685, which is relatively close to the normal populations credit score. There are a number of outliers that have a credit score of 0, which are probably incorrectly reported.
+
+
+
+### What other features in the dataset do you think will help support your investigation into your feature(s) of interest?
+
+### Did you create any new variables from existing variables in the dataset?
+
+### Of the features you investigated, were there any unusual distributions? Did you perform any operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
+
+In order to model the data, I needed to fix the dates for some of the columns. In addition, I consolidated some of the categories for LoanStatus and ListingCategory.
+
+
+# Bivariate Plots Section
+```{r echo=FALSE, Bivariate_Plots}
+ggplot(loans, aes( LoanStatus, LoanOriginalAmount)) + geom_boxplot()
+
+
+ggplot(loans, aes(ListingCreationDate, CreditScoreRangeLower, col = IsBorrowerHomeowner)) + geom_point(alpha = .1) + facet_wrap(~LoanStatus)
+
+ggplot(loans, aes(ListingCreationDate, CreditScoreRangeLower, col = EmploymentStatus)) + geom_point(alpha = .1) + facet_wrap(~LoanStatus)
+
+
+ggplot(loans, aes(EmploymentStatusDuration, CreditScoreRangeLower, col = LoanStatus)) + geom_point(alpha = .1)
+ggplot(loans, aes(RevolvingCreditBalance, CreditScoreRangeLower)) + geom_point(alpha = .1)
+
+ggplot(loans, aes(CurrentCreditLines, CurrentDelinquencies)) + geom_point(alpha = .1)
+
+
+ggplot(loans, aes(DebtToIncomeRatio, BorrowerAPR)) + geom_point(alpha = .1)
+ggplot(loans, aes(LoanStatus, LoanOriginalAmount)) + geom_boxplot()
+
+
+
+```
+
+# Bivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
+
+### Did you observe any interesting relationships between the other features (not the main feature(s) of interest)?
+
+### What was the strongest relationship you found?
+
+
+
+
+# Multivariate Plots Section
+
+```{r echo=FALSE, Multivariate_Plots}
+
+```
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. Were there features that strengthened each other in terms of looking at your feature(s) of interest?
+
+### Were there any interesting or surprising interactions between features?
+
+### OPTIONAL: Did you create any models with your dataset? Discuss the strengths and limitations of your model.
+
+------
+
+# Final Plots and Summary
+
+### Plot One
+```{r echo=FALSE, Plot_One}
+
+```
+
+### Description One
+
+
+### Plot Two
+```{r echo=FALSE, Plot_Two}
+
+```
+
+### Description Two
+
+
+### Plot Three
+```{r echo=FALSE, Plot_Three}
+
+```
+
+### Description Three
+
+------
+
+# Reflection
